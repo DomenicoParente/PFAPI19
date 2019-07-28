@@ -23,7 +23,7 @@ typedef struct ENT entity;
 
 struct ELENCO{
 	char type_rel[MAX];
-	char max_dest[XL];
+	char max_dest[100];
 	int max;
 	int n_rel;
 	struct ELENCO *next_t;
@@ -97,9 +97,6 @@ void searchdelete(char *target){
 		return;
 	}
 	while(cursor1 != NULL){
-		if(cursor1->rel == NULL){
-			return;
-		}
 		cursor2=cursor1->rel;
 		prev=NULL;
 		while(cursor2 !=NULL){
@@ -277,7 +274,7 @@ int addrel(char *id_orig, char *id_dest,char *t_rel){
 		}
 		current=ntype;
 		while(current !=NULL){
-				printf("|%s %d|\n",current->type_rel,current->n_rel);
+				printf("|%s %d %d|\n",current->type_rel,current->n_rel,current->max);
 				current=current->next_t;
 		}
 	#endif
@@ -370,20 +367,24 @@ int report(){
 		while(cs1 != NULL){
 			cs2=cs1->rel;
 			i=0;
-			while(cs2 != NULL){
-				if(strcmp(cs2->id_rel,cursor->type_rel)==0){
-					i++;
+			if(cs2!= NULL){
+				while(cs2 != NULL){
+					if(strcmp(cs2->id_rel,cursor->type_rel)==0){
+						i++;
+					}
+					#ifdef DEBUG
+						printf("i= %d \n",i);
+					#endif
+					cs2=cs2->next_r;
 				}
-				printf("Signal report");
-				cs2=cs2->next_r;
-			}
-			if(i>cursor->max){
-				cursor->max=i;
-				strcpy(cursor->max_dest,cs1->id_ent);
-			}
-			else if (i==cursor->max){
-				strcat(cursor->max_dest," ");
-				strcat(cursor->max_dest,cs1->id_ent);
+				if (i==cursor->max){
+					strcat(cursor->max_dest," ");
+					strcat(cursor->max_dest,cs1->id_ent);
+				}
+				if(i>cursor->max){
+					cursor->max=i;
+					strcpy(cursor->max_dest,cs1->id_ent);
+				}
 			}
 			cs1=cs1->next_e;
 		}
@@ -391,7 +392,8 @@ int report(){
 	}
 	cursor=ntype;
 	while(cursor != NULL){				//stampa report
-		printf("%s %s %d;",cursor->type_rel,cursor->max_dest,cursor->max);
+		printf("%s %s %d; ",cursor->type_rel,cursor->max_dest,cursor->max);
+		cursor->max=0;
 		cursor=cursor->next_t;
 	}
 	printf("\n");
