@@ -3,8 +3,8 @@
 #include <string.h>
 
 //#define DEBUG
-#define MAX 20
-#define XL 60
+#define MAX 40
+#define XL 100
 #define N 4
 
 struct RE{						// dichiarazione strutture
@@ -23,7 +23,7 @@ typedef struct ENT entity;
 
 struct ELENCO{
 	char type_rel[MAX];
-	char max_dest[100];
+	char max_dest[500];
 	int max;
 	int n_rel;
 	struct ELENCO *next_t;
@@ -45,7 +45,7 @@ void typecheck(){
 	cursor=ntype;
 	pre=NULL;
 	while(cursor != NULL){
-		if(cursor->n_rel==0){
+		if(cursor->n_rel<=0){
 			if(pre==NULL){
 				temp=cursor;
 				ntype=temp->next_t;
@@ -196,7 +196,6 @@ int delent(char *name_e){
 		free(cursor);
 	}
 	searchdelete(name_e);
-	typecheck();
 	#ifdef DEBUG
 		cursor= list_e;
 		while(cursor !=NULL){
@@ -335,7 +334,6 @@ int delrel(char *id_orig, char *id_dest, char *t_rel){
 		past->next_r=cursor2->next_r;						// eliminazione relazione
 		free(cursor2);
 	}
-	typecheck();
 	#ifdef DEBUG
 	relation *f;
 	elenco_type *current;
@@ -357,6 +355,7 @@ int report(){
 	entity *cs1;
 	relation *cs2;
 	int i;
+	typecheck();
 	cursor=ntype;
 	if(ntype==NULL){					// verifica se il numero di relazioni e' 0 
 		printf("none\n");
@@ -372,12 +371,9 @@ int report(){
 					if(strcmp(cs2->id_rel,cursor->type_rel)==0){
 						i++;
 					}
-					#ifdef DEBUG
-						printf("i= %d \n",i);
-					#endif
 					cs2=cs2->next_r;
 				}
-				if (i==cursor->max){
+				if (i==cursor->max && i!=0){
 					strcat(cursor->max_dest," ");
 					strcat(cursor->max_dest,cs1->id_ent);
 				}
