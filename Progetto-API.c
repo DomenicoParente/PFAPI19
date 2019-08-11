@@ -1,248 +1,405 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 
-//#define DEBUG
+#define DEBUG
+#define HASHSIZE 2000
 #define MAX 40
 #define XL 100
+#define XXL 150
 #define N 4
-
-struct RE{						// dichiarazione strutture
-	char id_rel[MAX];
-	char origin[MAX];
-	struct RE *next_r;	
+									// STRUTTURE DATI	
+struct TREE{
+	char id_r[XXL];
+	trelation *rdest;
+	struct TREE *parent;
+	struct TREE *right;
+	struct TREE *left;
 };
-typedef struct RE relation;
+typedef struct TREE treenode;
+
+treenode *r_tree;			// albero relazioni
+
+struct TREL{
+	char rel_t[MAX];
+	int nrel;
+	struct TREL *next_rt;
+};
+typedef struct TREL trelation;
 
 struct ENT {
 	char id_ent[MAX];
-	relation *rel;
+	trelation *t_rel;
 	struct ENT *next_e;
 };
 typedef struct ENT entity;
 
+entity *ent_table[HASHSIZE];		// tabella hash per le entità
+
+struct M {
+	char max_dest[MAX];
+	struct M *next_m;
+};
+typedef struct M max_d;
+
 struct ELENCO{
 	char type_rel[MAX];
-	char max_dest[500];
+	max_d *dest;
 	int max;
 	int n_rel;
 	struct ELENCO *next_t;
 };
 typedef struct ELENCO elenco_type;
+elenco_type *ntype;						// lista tipi relazioni
 
-entity *list_e;
-elenco_type *ntype;
-									// funzioni di supporto
-									
-void initiate(){					// inizializzazione strutture
-	list_e= NULL;
+void initiate(){						// FUNZIONI DI SUPPORTO
+	int i;
+	for(i=0; i<HASHSIZE; i++){
+		ent_table[i]=NULL; 
+	}
 	ntype= NULL;
+	rtree= NULL;
+}
+
+long int hashint(char *name_e){
+	unsigned long int hash = 5381;
+    unsigned int c,i,add=0;
+    c=strlen(name_e);
+    for(i=0;i<c;i++){
+		add+=(int)name_e[i];
+	}
+	while (c>0){
+		hash = ((hash << 5) + hash)+add + c;
+		c--;
+	}
+	return hash%HASHSIZE;
+}
+
+char *relid(char *id_orig, char *id_dest,char *t_rel){
+	char string[XXL];
+	string=strcat(id_origin,id_dest);
+	string=strcat(string,t_rel);
+	return string;
+}
+
+treenode *search_tree(char *string){
+	treenode *cursor;
+	cursor=r_tree;
+	while(cursor!= NULL){
+		if(strcmp(string,cursor->id_r)==0){
+			return cursor;
+		}
+		if(strcmp(string,cursor->id_r)>0){
+			cursor=cursor->right;
+		}
+		else{
+			cursor=cursor->left;
+		}
+	}
+	return cursor;
+}
+
+treenode *insert_tree(char *string){
+	treenode *cursor,*pre,*new;
+	cursor=r_tree;
+	pre=NULL;
+	while(cursor!= NULL){
+		pre=cursor;
+		if(strcmp(string,cursor->id_r)>0){
+			cursor=cursor->right;
+		}
+		else{
+			cursor=cursor->left;
+		}
+	}
+	new=malloc(sizeof(treenode));
+	new->parent=pre;
+	strcpy(new->id_r,string);
+	if(pre == NULL){
+		r_tree=new;
+	}
+	else if(strcmp(string,pre->id_r)>0){
+		pre->right=new;	
+	}
+	else{
+		pre->left=new;
+	}
+	new->left=NULL;
+	new->right=NULL;
+	return new;
+}
+
+void delete_node(treenode *node){
+	treenode *del,*temp,*temp2,*min,*minc;
+	del=node->parent;
+	if(node==NULL){
+		return;
+	}
+	if(del==NULL){			//caso radice
+		// 0 figli
+        if(node->left==NULL && node->right==NULL){
+            free(node);
+            r_tree=NULL;
+        }
+        // 1 figlio
+        else if(node->left==NULL || node->right==NULL){
+            if(node->left==NULL)
+                temp=node->right;
+            else
+                temp=node->left;
+            free(node);
+            r_tree=temp;
+            temp->parent=NULL;
+        }
+        // 2 figli
+        else
+        {
+            minc=node->right;
+            min=minc;
+            while(minc != NULL){
+				min=minc;
+				minc=minc->left;
+			}
+            strcpy(node->id_r,min->id_r);
+            temp=min->parent;
+            if(temp->right==min){
+				temp->right=min->right;
+				if(min->right!= NULL){
+					temp2=min->right;
+					temp2->parent=temp;
+				}
+				free(min);
+			}
+			else{
+				temp->left=min->right;
+				temp2=min->right;
+				temp2->parent=temp;
+				free(min);
+			}
+        }
+	}
+	else{
+		// 0 figli
+        if(node->left==NULL && node->right==NULL){
+			temp=node->parent;
+			if(temp->right==node){
+				temp->right=NULL;
+			}
+			else{
+				temp->left=NULL;
+			}
+            free(node);
+        }
+        // 1 figlio
+        else if(node->left==NULL || node->right==NULL){
+            if(node->left==NULL)
+                temp=node->right;
+            else
+                temp=node->left;
+			temp2=node->parent;
+			if(temp2->right==node){
+				temp2->right=temp;
+			}
+			else{
+				temp2->left=temp;
+			}
+			temp->parent=temp2;
+            free(node);
+        }
+        // 2 figli
+        else
+        {
+            minc=node->right;
+            min=minc;
+            while(minc != NULL){
+				min=minc;
+				minc=minc->left;
+			}
+            strcpy(node->id_r,min->id_r);
+            temp=min->parent;
+            if(temp->right==min){
+				temp->right=min->right;
+				if(min->right != NULL){
+					temp2=min->right;
+					temp2->parent=temp;
+				}
+				free(min);
+			}
+			else{
+				temp->left=min->right;
+				temp2=min->right;
+				temp2->parent=temp;
+				free(min);
+			}
+        }
+	}
+}
+
+void freetree(char *string,treenode *node){
+	treenode *cursor,*temp;
+	cursor=node;
+	if(cursor!=NULL){
+		freetree(string,node->right);
+		freetree(string,node->left);
+		if(strstr(cursor->id_r,string)!=NULL){
+			cursor->rdest->nrel--;
+			temp=cursor;
+			delete_node(temp);
+		}
+	}
+}
+
+void freelist(trelation *rel_ent){
+	trelation *l;
+	l=rel_ent;
+	if (l != NULL) {
+    freelist(l->next_rt);
+    free(l);
+   }
+}
+
+void freemax(max_d *max){
+	max_d *l;
+	l=max;;
+	if (l != NULL) {
+    freemax(l->next_m);
+    free(l);
+   }
 }
 
 void typecheck(){
 	elenco_type *cursor,*pre,*temp;
-	int i=0;
-	cursor=ntype;
+	bool i=false;
+    cursor=ntype;
 	pre=NULL;
 	while(cursor != NULL){
+		i=false;
 		if(cursor->n_rel<=0){
+			if(cursor->dest != NULL){
+				freemax(cursor->dest);
+				cursor->dest=NULL;
+			}
 			if(pre==NULL){
 				temp=cursor;
-				ntype=temp->next_t;
+				ntype=cursor->next_t;
 				free(temp);
 				cursor=ntype;
-				i=1;
+				i=true;
 			}
 			else{
 				temp=cursor;
-				pre->next_t=temp->next_t;
+				pre->next_t=cursor->next_t;
 				free(temp);
 				cursor=pre;
 			}
 		}
-		if(i==0){
+		if(i==false){
 			pre=cursor;
 			cursor=cursor->next_t;
 		}
-		i=0;
 	}
 }
 
-void freelist(relation *rel_ent){
-	elenco_type *cs;
-	relation *l;
-	l=rel_ent;
-	int i;
-	if (l != NULL) {
-    freelist(l->next_r);
-    cs=ntype;
-    i=0;
-	while(cs!= NULL && i==0){
-		if(strcmp(l->id_rel,cs->type_rel)==0){
-			cs->n_rel--;
-			i=1;
-		}
-		cs=cs->next_t;
-	}
-    free(l);
-   }
-}
-void searchdelete(char *target){
-	entity *cursor1;
-	relation *cursor2,*prev,*temp;
-	elenco_type *cursor3;
-	int i=0;
-	cursor1=list_e;
-	if(list_e ==NULL){
-		return;
-	}
-	while(cursor1 != NULL){
-		cursor2=cursor1->rel;
-		prev=NULL;
-		while(cursor2 !=NULL){
-			if(strcmp(target,cursor2->origin)==0){
-				cursor3=ntype;
-				while(cursor3!= NULL){
-					if(strcmp(cursor3->type_rel,cursor2->id_rel)==0){
-						cursor3->n_rel--;
-						break;
-					}
-					cursor3=cursor3->next_t;
-				}
-				if(prev==NULL){
-					temp=cursor2;
-					cursor1->rel=temp->next_r;
-					free(temp);
-					cursor2=cursor1->rel;
-					i=1;
-				}
-				else{
-					temp=cursor2;
-					prev->next_r=temp->next_r;
-					free(temp);
-					cursor2=prev;
-				}
-			}
-			if(i==0){
-				prev=cursor2;
-				cursor2=cursor2->next_r;
-			}
-			i=0;
-		}
-		cursor1=cursor1->next_e;
-	}
-}
-
-int addent(char *name_e){ 							// funzioni
-	entity *q;
-	entity *current,*past;
-	current= list_e;
-	past= NULL;
-	while(current !=NULL && strcmp(current->id_ent,name_e)<0){	// verifica della presenza dell'ente
-		past=current;
-		current=current->next_e;
-	}
-	if(current!=NULL && strcmp(current->id_ent,name_e)==0){
+int addent(char *name_e){ 							// FUNZIONI
+	long int k;
+	entity *cursor,*p;
+	k=hashint(name_e);						// verifica presenza ente
+	cursor= ent_table[k];
+	while(cursor != NULL){
+		if(strcmp(cursor->id_ent,name_e)==0){
 			return 1;
+		}
+		cursor=cursor->next_e;
 	}
-	q=malloc(sizeof(entity));						// inserimento nuovo ente
-		q->next_e=current;
-		if (past != NULL){
-			past->next_e=q;
-		}
-		else{
-			 list_e= q;
-		 } 
-		strcpy(q->id_ent,name_e);
-		q->rel=NULL;
+	p=malloc(sizeof(entity));			// inserimento nuovo ente
+	strcpy(p->id_ent,name_e);
+	p->t_rel=NULL;
+	p->next_e=ent_table[k];
+	ent_table[k]=p;
+		
 	#ifdef DEBUG
-		current= list_e;
-		while(current !=NULL){
-				printf("%s\n",current->id_ent);
-				current=current->next_e;
+		int i;
+		printf("Valore hash: %ld \n",k);
+		for(i=0;i<HASHSIZE;i++){
+			if(ent_table[i]!= NULL){
+				cursor=ent_table[i];
+				while(cursor !=NULL){
+					printf("%s\n",cursor->id_ent);
+					cursor=cursor->next_e;
+				}
+			}
 		}
-	
-	#endif
+	#endif	
 	return 0;
 }
-int delent(char *name_e){
-	int i=0;
-	entity *cursor,*past,*temp;
-	cursor= list_e;
-	past= NULL;
-	while(cursor !=NULL && i==0){					// verifica della presenza dell'ente
-		if(strcmp(cursor->id_ent,name_e)==0){
-			i=1;
+
+int addrel(char *id_orig, char *id_dest,char *t_rel){
+	long int k,j;
+	treenode *node;
+	trelation *p,*cs;
+	elenco_type *current,*past,*r;
+	bool f=false,h;
+	entity *cursor;
+	char id_rel[XXL];
+	id_rel=relid(id_orig,id_dest,t_rel);
+	k=hashint(id_orig);						// verifica presenza enti
+	j=hashint(id_dest);
+	if(ent_table[k]== NULL || ent_table[j]== NULL){
+		return 1;
+	}
+	cursor=ent_table[k];
+	while(cursor != NULL && f== false){
+		if(strcmp(cursor->id_ent,id_orig)==0){
+			f=true;
 		}
-		if(i==0){
-			past=cursor;
+		if(f==false){
 			cursor=cursor->next_e;
 		}
 	}
-	if(i==0 || list_e== NULL){
+	if(f==false){
 		return 1;
 	}
-	if(cursor->rel != NULL){					// eliminazione ente
-		temp=cursor;
-		freelist(temp->rel);
-		cursor->rel=NULL;
-	}
-	if(past== NULL){
-			list_e=cursor->next_e;
-			free(cursor);
-		}
-	else{							
-		past->next_e=cursor->next_e;
-		free(cursor);
-	}
-	searchdelete(name_e);
-	#ifdef DEBUG
-		cursor= list_e;
-		while(cursor !=NULL){
-				printf("%s\n",cursor->id_ent);
-				cursor=cursor->next_e;
-		}
-	elenco_type *current;
-		current=ntype;
-		while(current !=NULL){
-				printf("|%s %d|\n",current->type_rel,current->n_rel);
-				current=current->next_t;
-		}
-	#endif
-	return 0;
-}
-int addrel(char *id_orig, char *id_dest,char *t_rel){
-	int j=0,k=0;
-	entity *cursor,*dest_found;
-	relation *p,*f;
-	elenco_type *current,*past,*r;						
-	cursor= list_e;									// verifica della presenza degli enti
-	while(cursor != NULL && (j==0 || k==0)){
-		if(strcmp(cursor->id_ent,id_orig)==0){
-			j=1;
-		}
+	f=false;
+	cursor=ent_table[j];
+	while(cursor != NULL && f==false){
 		if(strcmp(cursor->id_ent,id_dest)==0){
-			k=1;
-			dest_found=cursor;
+			f=true;
 		}
-	cursor=cursor->next_e;	
+		if(f==false){
+			cursor=cursor->next_e;
+		}
 	}
-	if(j==0 || k==0){
+	if(f==false){
 		return 1;
 	}
-	f=dest_found->rel;							// verifica esistenza della relazione
-	while(f !=NULL){
-		if(strcmp(f->id_rel,t_rel)==0 && strcmp(f->origin,id_orig)==0){
+	cs=cursor->t_rel;
+	if(r_tree != NULL){						// cerca se la relazione già esiste
+		node=search_tree(id_rel);
+		if(node != NULL){
 			return 1;
 		}
-		f= f->next_r;
 	}
-	p=malloc(sizeof(relation));			// inserimento della relazione nella lista
-	p->next_r=dest_found->rel;
-	dest_found->rel=p;
-	strcpy(p->id_rel,t_rel);
-	strcpy(p->origin,id_orig);
-	
+	while(cs!= NULL && f==false){
+			if(strcmp(cs->rel_t,t_rel)==0){
+				f=true;
+			}
+			if(f==false){
+				cs=cs->next_rt;
+			}
+		}
+	if(h==false){						// aggiunto elemento tipo relazione
+		p=malloc(sizeof(trelation));
+		p->next_rt=cs;
+		cs=p;
+		strcpy(p->rel_t,t_rel);
+		p->nrel=1;	
+	}
+	else{
+		cs->nrel++;
+	}
+	node=insert_tree(id_rel);			// inserimento relazione nell'albero
+	node->rdest=cs;
 	current=ntype; 								 		// verifica e inserimento tipo relazione 
 	past= NULL;
 	while(current !=NULL && strcmp(current->type_rel,t_rel)<0){
@@ -264,12 +421,14 @@ int addrel(char *id_orig, char *id_dest,char *t_rel){
 		strcpy(r->type_rel,t_rel);
 		r->max=0;
 		r->n_rel=1;
-	}
+		r->dest= NULL;
+	}	
 	#ifdef DEBUG
-		f=dest_found->rel;
-		while(f !=NULL){
-				printf("<%s %s %s>\n",f->id_rel,f->origin,dest_found->id_ent);
-				f=f->next_r;
+		relation *w;
+		w=cursor->rel;
+		while(w != NULL){
+			printf("%s %d\n",w->rel_t,w->nrel);
+			w=w->next_rt;
 		}
 		current=ntype;
 		while(current !=NULL){
@@ -279,116 +438,212 @@ int addrel(char *id_orig, char *id_dest,char *t_rel){
 	#endif
 	return 0;
 }
+
 int delrel(char *id_orig, char *id_dest, char *t_rel){
-	int j=0;
-	entity *cursor1;
-	relation *cursor2,*past;
-	elenco_type *cursor3;
-	if(list_e != NULL){						// verifica della presenza della relazione
-		cursor1= list_e;
-		while(cursor1 != NULL && j==0){
-			if(strcmp(cursor1->id_ent,id_dest)==0){
-				j=1;
-			}
-			if(j==0){
-				cursor1=cursor1->next_e;
-			}
+	long int k,j;
+	treenode *node;
+	elenco_type *current,*past,*r;
+	bool f=false,h;
+	entity *cursor;
+	char id_rel[XXL];
+	id_rel=relid(id_orig,id_dest,t_rel);
+	k=hashint(id_orig);						// verifica presenza enti
+	j=hashint(id_dest);
+	if(ent_table[k]== NULL || ent_table[j]== NULL){
+		return 1;
+	}
+	cursor=ent_table[k];
+	while(cursor != NULL && f== false){
+		if(strcmp(cursor->id_ent,id_orig)==0){
+			f=true;
 		}
-		if(j==0 || cursor1 == NULL){
+		if(f==false){
+			cursor=cursor->next_e;
+		}
+	}
+	if(f==false){
+		return 1;
+	}
+	f=false;
+	cursor=ent_table[j];
+	while(cursor != NULL && f==false){
+		if(strcmp(cursor->id_ent,id_dest)==0){
+			f=true;
+		}
+		if(f==false){
+			cursor=cursor->next_e;
+		}
+	}
+	if(f==false){
+		return 1;
+	}
+	if(r_tree != NULL){						// cerca se la relazione già esiste
+		node=search_tree(id_rel);
+		if(node == NULL){
 			return 1;
-		}
-		else{									
-			cursor2=cursor1->rel;
-			past=NULL;
-			j=0;
-			while(cursor2 != NULL && j==0){
-				if(strcmp(cursor2->origin,id_orig)==0 && strcmp(cursor2->id_rel,t_rel)==0){
-					j=1;
-				}
-				if(j==0){
-					past=cursor2;
-					cursor2=cursor2->next_r;
-				}
-			}
-			if(j==0){
-				return 1;
-			}
 		}
 	}
 	else{
 		return 1;
 	}
-	cursor3=ntype;
-	while(cursor3!= NULL){
-		if(strcmp(cursor3->type_rel,cursor2->id_rel)==0){
-			cursor3->n_rel--;
-			break;
+	node->rdest->nrel--;
+	node->rdest=NULL;
+	delete_node(node);
+	cursor2=ntype;
+	while(cursor2!= NULL){
+		if(strcmp(cursor2->type_rel,t_rel)==0){
+			cursor2->n_rel--;
+		break;
 		}
-		cursor3=cursor3->next_t;
+		cursor2=cursor2->next_t;
 	}
-	if(past == NULL){
-		cursor1->rel=cursor2->next_r;
-		free(cursor2);
+	return 0;
+}
+
+int delent(char *name_e){
+	bool i=false;
+	long int k;
+	int j;
+	entity *cursor,*past;
+	trelation *cs2,*temp;
+	elenco_type *cs1;
+	k=hashint(name_e);
+	#ifdef DEBUG
+		printf("%ld\n",k);
+	#endif
+	if(ent_table[k]!= NULL){					// verifica presenza ente
+		cursor=ent_table[k];
+		past=NULL;
+		while(cursor != NULL  && i==false ){
+			if(strcmp(cursor->id_ent,name_e)==0){
+				i=true;
+			}
+			if(i==false){
+				past=cursor;
+				cursor=cursor->next_e;
+			}
+		}
+		if(i==false){
+			return 1;
+		}
+	} 
+	else{
+		return 1;
+	}
+
+	cs1=ntype;
+	if(cursor->rel != NULL){					// eliminazione relazioni ente
+		temp=cursor->t_rel;
+		while(cs1 != NULL){
+			cs2=cursor->t_rel;
+			j=0;
+			while(cs2!= NULL && j==0){
+				if(strcmp(cs1->type_rel,cs2->rel_t)==0){
+					cs1->n_rel-=cs2->nrel;
+					j=1;
+				}
+				cs2=cs2->next_rt;
+			}
+			cs1=cs1->next_t;
+		}
+		freetree(name_e,r_tree);
+		freelist(temp);
+		cursor->trel=NULL;
 	}
 	else{
-		past->next_r=cursor2->next_r;						// eliminazione relazione
-		free(cursor2);
+		return 1;
+	 }
+	if(past== NULL){							// eliminazione ente
+			ent_table[k]=cursor->next_e;
+			free(cursor);
+		}
+	else{							
+		past->next_e=cursor->next_e;
+		free(cursor);
 	}
 	#ifdef DEBUG
-	relation *f;
-	elenco_type *current;
-		f=cursor1->rel;
-		while(f !=NULL){
-				printf("<%s %s %s>\n",f->id_rel,f->origin,cursor1->id_ent);
-				f=f->next_r;
-		}
-		current=ntype;
-		while(current !=NULL){
-				printf("|%s %d|\n",current->type_rel,current->n_rel);
-				current=current->next_t;
+		int l;
+		for(l=0;l<HASHSIZE;l++){
+			if(ent_table[l]!= NULL){
+				cursor=ent_table[l];
+				while(cursor !=NULL){
+					printf("%s\n",cursor->id_ent);
+					cursor=cursor->next_e;
+				}
+			}
 		}
 	#endif
 	return 0;
 }
+
 int report(){
 	elenco_type *cursor;
 	entity *cs1;
 	relation *cs2;
-	int i;
+	max_d *cs3,*pre,*q,*temp;
+	int i,j;
 	typecheck();
 	cursor=ntype;
 	if(ntype==NULL){					// verifica se il numero di relazioni e' 0 
 		printf("none\n");
 		return 0;
 	}
-	while(cursor != NULL){
-		cs1=list_e;
-		while(cs1 != NULL){
-			cs2=cs1->rel;
-			i=0;
-			if(cs2!= NULL){
-				while(cs2 != NULL){
-					if(strcmp(cs2->id_rel,cursor->type_rel)==0){
-						i++;
+	while(cursor!= NULL){
+		for(i=0;i<HASHSIZE;i++){
+			if(ent_table[i]!= NULL){
+				cs1=ent_table[i];
+				while(cs1 != NULL){
+					cs2=cs1->trel;
+					j=0;
+					while(cs2!= NULL && j==0){
+						if(strcmp(cursor->type_rel,cs2->rel_t)==0){
+							j=1;
+							cs3=cursor->dest;
+							if(cs2->nrel > cursor->max){
+								cursor->max=cs2->nrel;
+								if(cursor->dest!=NULL){
+									temp=cursor->dest;
+									freemax(temp);
+									cursor->dest= NULL;
+									cs3=cursor->dest;
+								}
+							}
+							if(cs2->nrel >= cursor->max && cs2->nrel!=0){
+								pre=NULL;
+								while(cs3 !=NULL && strcmp(cs3->max_dest,cs1->id_ent)<0){
+									pre=cs3;
+									cs3=cs3->next_m;
+								}
+								if(cs3== NULL || strcmp(cs3->max_dest,cs1->id_ent)!=0){
+									q=malloc(sizeof(max_d));
+									q->next_m=cs3;
+									if (pre != NULL){
+										pre->next_m=q;
+									}
+									else{
+										cursor->dest= q;
+									} 
+									strcpy(q->max_dest,cs1->id_ent);
+								}
+							}
+						}
+						cs2=cs2->next_rt;
 					}
-					cs2=cs2->next_r;
-				}
-				if (i==cursor->max && i!=0){
-					strcat(cursor->max_dest," ");
-					strcat(cursor->max_dest,cs1->id_ent);
-				}
-				if(i>cursor->max){
-					cursor->max=i;
-					strcpy(cursor->max_dest,cs1->id_ent);
+					cs1=cs1->next_e;
 				}
 			}
-			cs1=cs1->next_e;
 		}
 		cursor=cursor->next_t;
 	}
 	cursor=ntype;
 	while(cursor != NULL){				//stampa report
-		printf("%s %s %d; ",cursor->type_rel,cursor->max_dest,cursor->max);
+		printf("%s ",cursor->type_rel);
+		cs3=cursor->dest;
+		while(cs3 != NULL){
+			printf("%s ",cs3->max_dest);
+			cs3=cs3->next_m;
+		}
+		printf("%d; ",cursor->max);
 		cursor->max=0;
 		cursor=cursor->next_t;
 	}
