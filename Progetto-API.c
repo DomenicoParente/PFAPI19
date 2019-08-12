@@ -10,6 +10,13 @@
 #define XXL 150
 #define N 4
 									// STRUTTURE DATI	
+struct TREL{
+	char rel_t[MAX];
+	int nrel;
+	struct TREL *next_rt;
+};
+typedef struct TREL trelation;
+
 struct TREE{
 	char id_r[XXL];
 	trelation *rdest;
@@ -20,13 +27,6 @@ struct TREE{
 typedef struct TREE treenode;
 
 treenode *r_tree;			// albero relazioni
-
-struct TREL{
-	char rel_t[MAX];
-	int nrel;
-	struct TREL *next_rt;
-};
-typedef struct TREL trelation;
 
 struct ENT {
 	char id_ent[MAX];
@@ -59,7 +59,7 @@ void initiate(){						// FUNZIONI DI SUPPORTO
 		ent_table[i]=NULL; 
 	}
 	ntype= NULL;
-	rtree= NULL;
+	r_tree= NULL;
 }
 
 long int hashint(char *name_e){
@@ -74,13 +74,6 @@ long int hashint(char *name_e){
 		c--;
 	}
 	return hash%HASHSIZE;
-}
-
-char *relid(char *id_orig, char *id_dest,char *t_rel){
-	char string[XXL];
-	string=strcat(id_origin,id_dest);
-	string=strcat(string,t_rel);
-	return string;
 }
 
 treenode *search_tree(char *string){
@@ -342,7 +335,12 @@ int addrel(char *id_orig, char *id_dest,char *t_rel){
 	bool f=false,h;
 	entity *cursor;
 	char id_rel[XXL];
-	id_rel=relid(id_orig,id_dest,t_rel);
+	strcpy(id_rel,id_orig);
+	strcat(id_rel,id_dest);
+	strcat(id_rel,t_rel);
+	#ifdef DEBUG
+		printf("ID_REL: %s\n",id_rel);
+	#endif
 	k=hashint(id_orig);						// verifica presenza enti
 	j=hashint(id_dest);
 	if(ent_table[k]== NULL || ent_table[j]== NULL){
@@ -424,8 +422,8 @@ int addrel(char *id_orig, char *id_dest,char *t_rel){
 		r->dest= NULL;
 	}	
 	#ifdef DEBUG
-		relation *w;
-		w=cursor->rel;
+		trelation *w;
+		w=cursor->t_rel;
 		while(w != NULL){
 			printf("%s %d\n",w->rel_t,w->nrel);
 			w=w->next_rt;
@@ -442,11 +440,16 @@ int addrel(char *id_orig, char *id_dest,char *t_rel){
 int delrel(char *id_orig, char *id_dest, char *t_rel){
 	long int k,j;
 	treenode *node;
-	elenco_type *current,*past,*r;
-	bool f=false,h;
+	elenco_type *cursor2;;
+	bool f=false;
 	entity *cursor;
 	char id_rel[XXL];
-	id_rel=relid(id_orig,id_dest,t_rel);
+	strcpy(id_rel,id_orig);
+	strcat(id_rel,id_dest);
+	strcat(id_rel,t_rel);
+	#ifdef DEBUG
+		printf("ID_REL: %s\n",id_rel);
+	#endif
 	k=hashint(id_orig);						// verifica presenza enti
 	j=hashint(id_dest);
 	if(ent_table[k]== NULL || ent_table[j]== NULL){
@@ -532,7 +535,7 @@ int delent(char *name_e){
 	}
 
 	cs1=ntype;
-	if(cursor->rel != NULL){					// eliminazione relazioni ente
+	if(cursor->t_rel != NULL){					// eliminazione relazioni ente
 		temp=cursor->t_rel;
 		while(cs1 != NULL){
 			cs2=cursor->t_rel;
@@ -548,7 +551,7 @@ int delent(char *name_e){
 		}
 		freetree(name_e,r_tree);
 		freelist(temp);
-		cursor->trel=NULL;
+		cursor->t_rel=NULL;
 	}
 	else{
 		return 1;
@@ -579,7 +582,7 @@ int delent(char *name_e){
 int report(){
 	elenco_type *cursor;
 	entity *cs1;
-	relation *cs2;
+	trelation *cs2;
 	max_d *cs3,*pre,*q,*temp;
 	int i,j;
 	typecheck();
@@ -593,7 +596,7 @@ int report(){
 			if(ent_table[i]!= NULL){
 				cs1=ent_table[i];
 				while(cs1 != NULL){
-					cs2=cs1->trel;
+					cs2=cs1->t_rel;
 					j=0;
 					while(cs2!= NULL && j==0){
 						if(strcmp(cursor->type_rel,cs2->rel_t)==0){
