@@ -81,6 +81,9 @@ treenode *search_tree(char *string){
 	cursor=r_tree;
 	while(cursor!= NULL){
 		if(strcmp(string,cursor->id_r)==0){
+			#ifdef DEBUG
+				printf("Trovato: %s\n",cursor->id_r);
+			#endif
 			return cursor;
 		}
 		if(strcmp(string,cursor->id_r)>0){
@@ -146,8 +149,7 @@ void delete_node(treenode *node){
             temp->parent=NULL;
         }
         // 2 figli
-        else
-        {
+        else{
             minc=node->right;
             min=minc;
             while(minc != NULL){
@@ -201,8 +203,7 @@ void delete_node(treenode *node){
             free(node);
         }
         // 2 figli
-        else
-        {
+        else{
             minc=node->right;
             min=minc;
             while(minc != NULL){
@@ -231,11 +232,25 @@ void delete_node(treenode *node){
 
 void freetree(char *string,treenode *node){
 	treenode *cursor,*temp;
+	elenco_type *cs;
+	bool f;
 	cursor=node;
 	if(cursor!=NULL){
 		freetree(string,node->right);
 		freetree(string,node->left);
 		if(strstr(cursor->id_r,string)!=NULL){
+			#ifdef DEBUG
+				printf("Eliminato: %s\n",cursor->id_r);
+			#endif
+			cs=ntype;
+			f=false;
+			while(cs!=NULL && f==false){
+				if(strcmp(cs->type_rel,cursor->rdest->rel_t)==0){
+					f=true;
+					cs->n_rel--;
+				}
+				cs=cs->next_t;
+			}
 			cursor->rdest->nrel--;
 			temp=cursor;
 			delete_node(temp);
@@ -247,8 +262,8 @@ void freelist(trelation *rel_ent){
 	trelation *l;
 	l=rel_ent;
 	if (l != NULL) {
-    freelist(l->next_rt);
-    free(l);
+		freelist(l->next_rt);
+		free(l);
    }
 }
 
@@ -256,8 +271,8 @@ void freemax(max_d *max){
 	max_d *l;
 	l=max;;
 	if (l != NULL) {
-    freemax(l->next_m);
-    free(l);
+		freemax(l->next_m);
+		free(l);
    }
 }
 
@@ -332,7 +347,7 @@ int addrel(char *id_orig, char *id_dest,char *t_rel){
 	treenode *node;
 	trelation *p,*cs;
 	elenco_type *current,*past,*r;
-	bool f=false,h;
+	bool f=false;
 	entity *cursor;
 	char id_rel[XXL];
 	strcpy(id_rel,id_orig);
@@ -378,6 +393,7 @@ int addrel(char *id_orig, char *id_dest,char *t_rel){
 			return 1;
 		}
 	}
+	f=false;
 	while(cs!= NULL && f==false){
 			if(strcmp(cs->rel_t,t_rel)==0){
 				f=true;
@@ -386,12 +402,16 @@ int addrel(char *id_orig, char *id_dest,char *t_rel){
 				cs=cs->next_rt;
 			}
 		}
-	if(h==false){						// aggiunto elemento tipo relazione
+	if(f==false){						// aggiunto elemento tipo relazione
 		p=malloc(sizeof(trelation));
-		p->next_rt=cs;
-		cs=p;
+		p->next_rt=cursor->t_rel;
+		cursor->t_rel=p;
 		strcpy(p->rel_t,t_rel);
+		#ifdef DEBUG
+			printf("Type: %s\n",p->rel_t);
+		#endif
 		p->nrel=1;	
+		cs=p;
 	}
 	else{
 		cs->nrel++;
@@ -401,9 +421,9 @@ int addrel(char *id_orig, char *id_dest,char *t_rel){
 	current=ntype; 								 		// verifica e inserimento tipo relazione 
 	past= NULL;
 	while(current !=NULL && strcmp(current->type_rel,t_rel)<0){
-			past=current;
-			current=current->next_t;
-		}
+		past=current;
+		current=current->next_t;
+	}
 	if(current!= NULL && strcmp(current->type_rel,t_rel)== 0){
 		current->n_rel++;
 	}
@@ -440,7 +460,7 @@ int addrel(char *id_orig, char *id_dest,char *t_rel){
 int delrel(char *id_orig, char *id_dest, char *t_rel){
 	long int k,j;
 	treenode *node;
-	elenco_type *cursor2;;
+	elenco_type *cursor2;
 	bool f=false;
 	entity *cursor;
 	char id_rel[XXL];
@@ -508,8 +528,7 @@ int delent(char *name_e){
 	long int k;
 	int j;
 	entity *cursor,*past;
-	trelation *cs2,*temp;
-	elenco_type *cs1;
+	trelation *temp;
 	k=hashint(name_e);
 	#ifdef DEBUG
 		printf("%ld\n",k);
@@ -532,34 +551,15 @@ int delent(char *name_e){
 	} 
 	else{
 		return 1;
-	}
-
-	cs1=ntype;
-	if(cursor->t_rel != NULL){					// eliminazione relazioni ente
-		temp=cursor->t_rel;
-		while(cs1 != NULL){
-			cs2=cursor->t_rel;
-			j=0;
-			while(cs2!= NULL && j==0){
-				if(strcmp(cs1->type_rel,cs2->rel_t)==0){
-					cs1->n_rel-=cs2->nrel;
-					j=1;
-				}
-				cs2=cs2->next_rt;
-			}
-			cs1=cs1->next_t;
-		}
-		freetree(name_e,r_tree);
-		freelist(temp);
-		cursor->t_rel=NULL;
-	}
-	else{
-		return 1;
-	 }
+	}				
+	temp=cursor->t_rel;
+	freetree(name_e,r_tree);
+	freelist(temp);
+	cursor->t_rel=NULL;
 	if(past== NULL){							// eliminazione ente
-			ent_table[k]=cursor->next_e;
-			free(cursor);
-		}
+		ent_table[k]=cursor->next_e;
+		free(cursor);
+	}
 	else{							
 		past->next_e=cursor->next_e;
 		free(cursor);
