@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-#define DEBUG
+//#define DEBUG
 #define HASHSIZE 2000
 #define MAX 40
 #define XL 100
@@ -307,6 +307,15 @@ void freelist(trelation *rel_ent){
    }
 }
 
+void freelistr(elenco_type **elen){
+	elenco_type *l;
+	l=*elen;
+	if (l != NULL) {
+		freelistr(&l->next_t);
+		free(l);
+   }
+}
+
 void freemax(max_d *max){
 	max_d *l;
 	l=max;;
@@ -582,7 +591,7 @@ int delent(char *name_e){
 }
 
 int report(){
-	elenco_type *ntype,*cursor,*past,*past2,*r;
+	elenco_type *ntype,*cursor,*past,*r;
 	int i;
 	entity *cs1;
 	trelation *cs2;
@@ -591,67 +600,66 @@ int report(){
 	ntype=NULL;
 	for(i=0;i<HASHSIZE;i++){
 		cs1=ent_table[i];
-		while(cs1 !=NULL){
+		while(cs1!= NULL){
 			cs2=cs1->t_rel;
-			while(cs2!=NULL){
-				cursor=ntype;
-				f=false;
-				past=NULL;
-				past2=NULL;
-				while(cursor!=NULL && f==false && strcmp(cs2->rel_t,cursor->type_rel)<=0){
-					if(strcmp(cs2->rel_t,cursor->type_rel)==0){
-						f=true;
+			while(cs2!= NULL){
+				if(cs2->nrel>0){
+					cursor=ntype;
+					f=false;
+					past=NULL;
+					while(cursor!= NULL && f==false && strcmp(cursor->type_rel,cs2->rel_t)<=0){
+						if(strcmp(cs2->rel_t,cursor->type_rel)==0){
+							f=true;
+						}
+						if(f==false){
+							past=cursor;
+							cursor=cursor->next_t;
+						}
 					}
-					past2=past;
-					past=cursor;
-					cursor=cursor->next_t;
-				}
-				if(f==false){
-					r=malloc(sizeof(elenco_type));
-					r->next_t=past;
-					if(past2!=NULL){
-						past2->next_t=r;
-					}
-					else{
-						ntype=r;
-					}
-					strcpy(r->type_rel,cs2->rel_t);
-					r->max=0;
-					r->dest= NULL;
-					cursor=r;
-				}
-				else{
-					cursor=past;
-				}
-				cs3=cursor->dest;
-				if(cs2->nrel > cursor->max){
-					cursor->max=cs2->nrel;
-					if(cursor->dest!=NULL){
-						temp=cursor->dest;
-						freemax(temp);
-						cursor->dest= NULL;
-						cs3=cursor->dest;
-					}
-				}
-				if(cs2->nrel >= cursor->max && cs2->nrel!=0){
-					pre=NULL;
-					while(cs3 !=NULL && strcmp(cs3->max_dest,cs1->id_ent)<0){
-						pre=cs3;
-						cs3=cs3->next_m;
-					}
-					if(cs3== NULL || strcmp(cs3->max_dest,cs1->id_ent)!=0){
-						q=malloc(sizeof(max_d));
-						q->next_m=cs3;
-						if (pre != NULL){
-							pre->next_m=q;
+					if(f==false){
+						r=malloc(sizeof(elenco_type));
+						r->next_t=cursor;
+						if(past!= NULL){
+							past->next_t=r;
 						}
 						else{
-							cursor->dest= q;
-						} 
-						strcpy(q->max_dest,cs1->id_ent);
+							ntype=r;
+						}
+						strcpy(r->type_rel,cs2->rel_t);
+						r->max=0;
+						r->dest= NULL;
+						cursor=r;
+					}
+					cs3=cursor->dest;
+					if(cs2->nrel > cursor->max){
+						cursor->max=cs2->nrel;
+						if(cursor->dest!=NULL){
+							temp=cursor->dest;
+							freemax(temp);
+							cursor->dest= NULL;
+							cs3=cursor->dest;
+						}	
+					}
+					if(cs2->nrel >= cursor->max && cs2->nrel!=0){
+						pre=NULL;
+						while(cs3 !=NULL && strcmp(cs3->max_dest,cs1->id_ent)<0){
+							pre=cs3;
+							cs3=cs3->next_m;
+						}
+						if(cs3== NULL || strcmp(cs3->max_dest,cs1->id_ent)!=0){
+							q=malloc(sizeof(max_d));
+							q->next_m=cs3;
+							if (pre != NULL){
+								pre->next_m=q;
+							}
+							else{
+								cursor->dest= q;
+							} 
+							strcpy(q->max_dest,cs1->id_ent);
+						}
 					}
 				}
-				cs2=cs2->next_rt;
+					cs2=cs2->next_rt;
 			}
 			cs1=cs1->next_e;
 		}
@@ -670,9 +678,11 @@ int report(){
 		}
 		printf("%d; ",cursor->max);
 		cursor->max=0;
+		freemax(cursor->dest);
 		cursor=cursor->next_t;
 	}
 	printf("\n");
+	freelistr(&ntype);
 	return 0;
 }
 
