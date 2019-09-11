@@ -4,10 +4,10 @@
 #include <stdbool.h>
 
 //#define DEBUG
-#define HASHSIZE 300
-#define HASHSIZE_REL 50
+#define HASHSIZE 100
+#define HASHSIZE_REL 20
 #define MAX 40
-#define XL 50
+#define XL 90
 #define N 4
 									// STRUTTURE DATI	
 struct REL{
