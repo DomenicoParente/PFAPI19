@@ -4,16 +4,17 @@
 #include <stdbool.h>
 
 //#define DEBUG
-#define HASHSIZE 2000
+#define HASHSIZE 300
+#define HASHSIZE_REL 50
 #define MAX 40
-#define XL 100
+#define XL 50
 #define N 4
 									// STRUTTURE DATI	
 struct REL{
 	struct REL *next;
 	struct REL *prev;
-	struct TREE *rel;
-	struct TREE **root;
+	struct RELTABLE *rel;
+	struct RELTABLE **root;
 };
 typedef struct REL relation;
 
@@ -24,22 +25,23 @@ struct TREL{
 };
 typedef struct TREL trelation;
 
-struct TREE{
+struct RELTABLE{
 	char id_r[XL];
 	trelation *rdest;
 	relation *ent;
-	struct REL **first;
-	struct TREE *parent;
-	struct TREE *right;
-	struct TREE *left;
+	relation **first;
+	struct ELENCO *tty;
+	struct RELTABLE *next;
+	struct RELTABLE	*prev;
 };
-typedef struct TREE treenode;
+typedef struct RELTABLE trb;
+typedef trb *trbp;
 
 struct ENT {
 	char id_ent[MAX];
 	trelation *t_rel;
 	relation *rlist;
-	treenode *rtree;
+	trbp *rel_table;
 	struct ENT *next_e;
 };
 typedef struct ENT entity;
@@ -56,244 +58,90 @@ struct ELENCO{
 	char type_rel[MAX];
 	max_d *dest;
 	int max;
+	int n_rel;
 	struct ELENCO *next_t;
 };
 typedef struct ELENCO elenco_type;
+elenco_type *ntype;						// lista tipi relazioni
+
+bool enable= false;
 
 void initiate(){						// FUNZIONI DI SUPPORTO
 	int i;
 	for(i=0; i<HASHSIZE; i++){
 		ent_table[i]=NULL; 
 	}
+	ntype= NULL;
 }
 
-long int hashint(char *name_e){
-	unsigned long int hash = 5381;
-    unsigned int c,i,add=0;
+int hashint(char *name_e){
+	unsigned long int hash=0;
+    unsigned int c,i;
     c=strlen(name_e);
     for(i=0;i<c;i++){
-		add+=(int)name_e[i];
-	}
-	while (c>0){
-		hash = ((hash << 5) + hash)+add + c;
-		c--;
+		hash=(hash*5381)+(int)name_e[i];
 	}
 	return hash%HASHSIZE;
 }
 
-treenode *search_tree(char *string, treenode *r_tree){
-	treenode *cursor;
-	cursor=r_tree;
-	while(cursor!= NULL){
-		if(strcmp(string,cursor->id_r)==0){
-			#ifdef DEBUG
-				printf("Trovato: %s\n",cursor->id_r);
-			#endif
-			return cursor;
-		}
-		if(strcmp(string,cursor->id_r)>0){
-			cursor=cursor->right;
-		}
-		else{
-			cursor=cursor->left;
-		}
+int hashintrel(char *name_e){
+	unsigned long int hash=0;
+    unsigned int c,i;
+    c=strlen(name_e);
+    for(i=0;i<c;i++){
+		hash=(hash*5381)+(int)name_e[i];
 	}
-	return cursor;
+	return hash%HASHSIZE_REL;
 }
 
-treenode *insert_tree(char *string, treenode **r_tree){
-	treenode *cursor,*pre,*new;
-	cursor=*r_tree;
-	pre=NULL;
-	while(cursor!= NULL){
-		pre=cursor;
-		if(strcmp(string,cursor->id_r)>0){
-			cursor=cursor->right;
-		}
-		else{
-			cursor=cursor->left;
-		}
-	}
-	new=malloc(sizeof(treenode));
-	new->parent=pre;
-	strcpy(new->id_r,string);
-	if(pre == NULL){
-		*r_tree=new;
-	}
-	else if(strcmp(string,pre->id_r)>0){
-		pre->right=new;	
-	}
-	else{
-		pre->left=new;
-	}
-	new->left=NULL;
-	new->right=NULL;
-	return new;
-}
-
-void delete_node(treenode *node, treenode **r_tree){
-	treenode *del,*temp,*temp2,*min,*minc;
-	if(node==NULL){
-		return;
-	}
-	del=node->parent;
-	if(del==NULL){			//caso radice
-		// 0 figli
-        if(node->left==NULL && node->right==NULL){
-            free(node);
-            *r_tree=NULL;
-            return;
-        }
-        // 1 figlio
-        else if(node->left==NULL || node->right==NULL){
-            if(node->left==NULL)
-                temp=node->right;
-            else
-                temp=node->left;
-            free(node);
-            *r_tree=temp;
-            temp->parent=NULL;
-            return;
-        }
-        // 2 figli
-        else{
-            minc=node->right;
-            min=minc;
-            while(minc != NULL){
-				min=minc;
-				minc=minc->left;
-			}
-            strcpy(node->id_r,min->id_r);
-            node->ent=min->ent;
-            node->rdest=min->rdest;
-            node->first=min->first;
-            min->ent->rel=node;
-            temp=min->parent;
-            if(temp->right==min){
-				temp->right=min->right;
-				if(min->right!= NULL){
-					temp2=min->right;
-					temp2->parent=temp;
-				}
-				free(min);
-			}
-			else{
-				temp->left=min->right;
-				if(min->right !=NULL){
-					temp2=min->right;
-					temp2->parent=temp;
-				}
-				free(min);
-			
-			}
-			return;
-        }
-	}
-	else{
-		// 0 figli
-        if(node->left==NULL && node->right==NULL){
-			temp=node->parent;
-			if(temp->right==node){
-				temp->right=NULL;
-			}
-			else{
-				temp->left=NULL;
-			}
-            free(node);
-            return;
-        }
-        // 1 figlio
-        else if(node->left==NULL || node->right==NULL){
-            if(node->left==NULL)
-                temp=node->right;
-            else
-                temp=node->left;
-			temp2=node->parent;
-			if(temp2->right==node){
-				temp2->right=temp;
-			}
-			else{
-				temp2->left=temp;
-			}
-			temp->parent=temp2;
-            free(node);
-            return;
-        }
-        // 2 figli
-        else{
-            minc=node->right;
-            min=minc;
-            while(minc != NULL){
-				min=minc;
-				minc=minc->left;
-			}
-            strcpy(node->id_r,min->id_r);
-            node->ent=min->ent;
-            node->rdest=min->rdest;
-            node->first=min->first;
-            min->ent->rel=node;
-            temp=min->parent;
-            if(temp->right==min){
-				temp->right=min->right;
-				if(min->right != NULL){
-					temp2=min->right;
-					temp2->parent=temp;
-				}
-				free(min);
-			}
-			else{
-				temp->left=min->right;
-				if(min->right !=NULL){
-					temp2=min->right;
-					temp2->parent=temp;
-				}
-				free(min);
-			}
-        }
-	}
-}
-
-void freetree(treenode *r_tree){
-	treenode *cursor,*del;
+void freetrel(trb *start){
+	trb *l;
 	relation *temp;
-	cursor=r_tree;
-	if(cursor!=NULL){
-		freetree(cursor->left);
-		freetree(cursor->right);
-		#ifdef DEBUG
-			printf("Eliminato: %s\n",cursor->id_r);
-		#endif
-		cursor->rdest->nrel--;
-			if(cursor->ent->prev==NULL){
-				*cursor->first=cursor->ent->next;
-				temp=cursor->ent->next;
-				if(temp!=NULL)
-					temp->prev=NULL;
-			}
-			else{
-				temp=cursor->ent->prev;
-				temp->next=cursor->ent->next;
-				temp=cursor->ent->next;
-				if(temp!=NULL)
-					temp->prev=cursor->ent->prev;
-			}
-			free(cursor->ent);
-			cursor->ent=NULL;
-			del=cursor;
-			free(del);	
+	l=start;
+	if(l != NULL){
+		freetrel(l->next);
+		l->rdest->nrel--;
+		l->tty->n_rel--;
+		if(l->ent->prev==NULL){
+			*l->first=l->ent->next;
+			temp=l->ent->next;
+			if(temp!=NULL)
+				temp->prev=NULL;
+		}
+		else{
+			temp=l->ent->prev;
+			temp->next=l->ent->next;
+			temp=l->ent->next;
+			if(temp!=NULL)
+				temp->prev=l->ent->prev;
+		}
+		free(l->ent);
+		l->ent=NULL;
+		free(l);
 	}
 }
 void freelistrel(relation *rel){
 	relation *l;
+	trb *temp;
 	l=rel;
 	if (l != NULL) {
 		freelistrel(l->next);
-		if(l->rel !=NULL){
 			#ifdef DEBUG
 			printf("Eliminato: %s\n",l->rel->id_r);
-		#endif
-			delete_node(l->rel,l->root);
-		}
+			#endif
+			if(l->rel->prev==NULL){
+				*l->root=l->rel->next;
+				if(l->rel->next!=NULL)
+					l->rel->next->prev=NULL;
+			}
+			else{
+				temp=l->rel->prev;
+				temp->next=l->rel->next;
+				temp=l->rel->next;
+				if(temp!=NULL)
+					temp->prev=l->rel->prev;
+			}
+		free(l->rel);	
 		free(l);
    }
 }
@@ -307,15 +155,6 @@ void freelist(trelation *rel_ent){
    }
 }
 
-void freelistr(elenco_type **elen){
-	elenco_type *l;
-	l=*elen;
-	if (l != NULL) {
-		freelistr(&l->next_t);
-		free(l);
-   }
-}
-
 void freemax(max_d *max){
 	max_d *l;
 	l=max;;
@@ -325,8 +164,42 @@ void freemax(max_d *max){
    }
 }
 
+void typecheck(){
+	elenco_type *cursor,*pre,*temp;
+	bool i=false;
+    cursor=ntype;
+	pre=NULL;
+	while(cursor != NULL){
+		i=false;
+		cursor->max=0;
+		if(cursor->n_rel<=0){
+			if(cursor->dest != NULL){
+				freemax(cursor->dest);
+				cursor->dest=NULL;
+			}
+			if(pre==NULL){
+				temp=cursor;
+				ntype=cursor->next_t;
+				free(temp);
+				cursor=ntype;
+				i=true;
+			}
+			else{
+				temp=cursor;
+				pre->next_t=cursor->next_t;
+				free(temp);
+				cursor=pre;
+			}
+		}
+		if(i==false){
+			pre=cursor;
+			cursor=cursor->next_t;
+		}
+	}
+}
+
 int addent(char *name_e){ 							// FUNZIONI
-	long int k;
+	int k;
 	entity *cursor,*p;
 	k=hashint(name_e);						// verifica presenza ente
 	cursor= ent_table[k];
@@ -340,16 +213,15 @@ int addent(char *name_e){ 							// FUNZIONI
 	strcpy(p->id_ent,name_e);
 	p->t_rel=NULL;
 	p->rlist=NULL;
-	p->rtree=NULL;
+	p->rel_table=NULL;
 	p->next_e=ent_table[k];
-	ent_table[k]=p;
-		
+	ent_table[k]=p;		
 	#ifdef DEBUG
-		int i;
+		int q;
 		printf("Valore hash: %ld \n",k);
-		for(i=0;i<HASHSIZE;i++){
-			if(ent_table[i]!= NULL){
-				cursor=ent_table[i];
+		for(q=0;q<HASHSIZE;q++){
+			if(ent_table[q]!= NULL){
+				cursor=ent_table[q];
 				while(cursor !=NULL){
 					printf("%s\n",cursor->id_ent);
 					cursor=cursor->next_e;
@@ -361,10 +233,13 @@ int addent(char *name_e){ 							// FUNZIONI
 }
 
 int addrel(char *id_orig, char *id_dest,char *t_rel){
-	long int k,j;
-	treenode *node;
+	int k,j;
 	trelation *p,*cs;
+	elenco_type *current,*past,*r;
+	trb *csr,*x;
+	trbp *relt;
 	relation *s;
+	max_d *cs3,*pre,*q;
 	bool f=false;
 	entity *cursor1,*cursor2;
 	char id_rel[XL];
@@ -404,10 +279,26 @@ int addrel(char *id_orig, char *id_dest,char *t_rel){
 		return 1;
 	}
 	cs=cursor2->t_rel;
-	if(cursor1->rtree != NULL){						// cerca se la relazione già esiste
-		node=search_tree(id_rel,cursor1->rtree);
-		if(node != NULL){
-			return 1;
+	k=hashintrel(id_rel);							// cerca se la relazione già esiste
+	#ifdef DEBUG
+		printf("HASH VALUE: %ld\n",k);
+	#endif
+	if(cursor1->rel_table!=NULL){
+		if(cursor1->rel_table[k]!=NULL){
+			csr=cursor1->rel_table[k];
+			while(csr != NULL){
+				if(strcmp(csr->id_r,id_rel)==0){
+					return 1;
+				}
+				csr=csr->next;
+			}
+		}
+	}
+	else{
+		relt=malloc(HASHSIZE_REL*(sizeof(trbp)));		// inserimento tabella relazioni
+		cursor1->rel_table=relt;
+		for(int l=0;l<HASHSIZE_REL;l++){
+			cursor1->rel_table[l]=NULL;
 		}
 	}
 	f=false;
@@ -440,12 +331,73 @@ int addrel(char *id_orig, char *id_dest,char *t_rel){
 		cursor2->rlist->prev=s;
 	}
 	cursor2->rlist=s;
-	node=insert_tree(id_rel,&cursor1->rtree);			// inserimento relazione nell'albero
-	s->rel=node;
-	s->root=&cursor1->rtree;
-	node->ent=s;
-	node->rdest=cs;
-	node->first=&cursor2->rlist;
+	x=malloc(sizeof(trb));
+	x->next=cursor1->rel_table[k];
+	x->prev=NULL;
+	if(cursor1->rel_table[k] !=NULL){
+		cursor1->rel_table[k]->prev=x;
+	}
+	cursor1->rel_table[k]=x;
+	s->rel=x;
+	x->ent=s;
+	x->rdest=cs;
+	strcpy(x->id_r,id_rel);
+	x->first=&cursor2->rlist;
+	s->root=&cursor1->rel_table[k];
+	current=ntype; 								 		// verifica e inserimento tipo relazione 
+	past= NULL;
+	while(current !=NULL && strcmp(current->type_rel,t_rel)<0){
+		past=current;
+		current=current->next_t;
+	}
+	if(current!= NULL && strcmp(current->type_rel,t_rel)== 0){
+		current->n_rel++;
+		x->tty=current;
+		if(enable==false){
+			if(cs->nrel> current->max){
+				current->max=cs->nrel;
+				freemax(current->dest);
+				current->dest=NULL;
+			}
+			if(cs->nrel >= current->max && cs->nrel!=0){
+				cs3=current->dest;
+				pre=NULL;
+				while(cs3 !=NULL && strcmp(cs3->max_dest,id_dest)<0){
+					pre=cs3;
+					cs3=cs3->next_m;
+				}
+				if(cs3== NULL || strcmp(cs3->max_dest,id_dest)!=0){
+					q=malloc(sizeof(max_d));
+					q->next_m=cs3;
+					if (pre != NULL){
+						pre->next_m=q;
+					}
+					else{
+						current->dest= q;
+					} 
+					strcpy(q->max_dest,id_dest);
+				}
+			}
+		}
+	}
+	else if(current == NULL || strcmp(current->type_rel,t_rel)!= 0){
+		r=malloc(sizeof(elenco_type));
+		r->next_t=current;
+		x->tty=r;
+		if (past != NULL){
+			past->next_t=r;
+		}
+		else{
+			ntype=r;
+		}
+		strcpy(r->type_rel,t_rel);
+		r->max=1;
+		q=malloc(sizeof(max_d));
+		q->next_m=NULL;
+		r->dest=q;
+		strcpy(q->max_dest,id_dest);
+		r->n_rel=1;
+	}	
 	#ifdef DEBUG
 		trelation *w;
 		w=cursor2->t_rel;
@@ -453,14 +405,19 @@ int addrel(char *id_orig, char *id_dest,char *t_rel){
 			printf("%s %d\n",w->rel_t,w->nrel);
 			w=w->next_rt;
 		}
+		current=ntype;
+		while(current !=NULL){
+				printf("|%s %d %d|\n",current->type_rel,current->n_rel,current->max);
+				current=current->next_t;
+		}
 	#endif
 	return 0;
 }
 
 int delrel(char *id_orig, char *id_dest, char *t_rel){
 	long int k,j;
-	treenode *node;
 	relation *temp;
+	trb *csr;
 	bool f=false;
 	entity *cursor1,*cursor2;
 	char id_rel[XL];
@@ -499,41 +456,66 @@ int delrel(char *id_orig, char *id_dest, char *t_rel){
 	if(f==false){
 		return 1;
 	}
-	if(cursor1->rtree != NULL){						// cerca se la relazione già esiste
-		node=search_tree(id_rel,cursor1->rtree);
-		if(node == NULL){
+	j=hashintrel(id_rel);				// cerca se la relazione già esiste
+	#ifdef DEBUG
+		printf("HASH VALUE: %ld\n",j);
+	#endif
+	f=false;
+	if(cursor1->rel_table==NULL){
+		return 1;
+	}
+	if(cursor1->rel_table[j]!=NULL){
+		csr=cursor1->rel_table[j];
+		while(csr != NULL && f==false){
+			if(strcmp(csr->id_r,id_rel)==0){
+				f=true;
+			}
+			if(f==false){
+				csr=csr->next;
+			}
+		}
+		if(f==false){
 			return 1;
 		}
 	}
 	else{
 		return 1;
 	}
-	node->rdest->nrel--;
-	if(node->ent->prev==NULL){
-		cursor2->rlist=node->ent->next;
-		temp=node->ent->next;
+	enable=true;
+	csr->rdest->nrel--;
+	csr->tty->n_rel--;
+	if(csr->ent->prev==NULL){
+		cursor2->rlist=csr->ent->next;
+		temp=csr->ent->next;
 		if(temp!=NULL)
 			temp->prev=NULL;
-		free(node->ent);
+		free(csr->ent);
 	}
 	else{
-		temp=node->ent->prev;
-		temp->next=node->ent->next;
-		temp=node->ent->next;
+		temp=csr->ent->prev;
+		temp->next=csr->ent->next;
+		temp=csr->ent->next;
 		if(temp!=NULL)
-			temp->prev=node->ent->prev;
-		free(node->ent);
+			temp->prev=csr->ent->prev;
+		free(csr->ent);
 	}
-	node->ent=NULL;
-	delete_node(node,&cursor1->rtree);
+	if(csr->prev !=NULL)
+		csr->prev->next=csr->next;
+	else
+		cursor1->rel_table[j]=csr->next;
+	if(csr->next!=NULL)
+		csr->next->prev=csr->prev;
+	free(csr);
 	return 0;
 }
 
 int delent(char *name_e){
-	bool i=false;
-	long int k;
-	int j;
+	bool f=false;
+	int i,k;
+	bool j=false;
 	entity *cursor,*past;
+	elenco_type *cs1;
+	trelation *cs2;
 	k=hashint(name_e);
 	#ifdef DEBUG
 		printf("%ld\n",k);
@@ -541,32 +523,48 @@ int delent(char *name_e){
 	if(ent_table[k]!= NULL){					// verifica presenza ente
 		cursor=ent_table[k];
 		past=NULL;
-		while(cursor != NULL  && i==false ){
+		while(cursor != NULL  && f==false ){
 			if(strcmp(cursor->id_ent,name_e)==0){
-				i=true;
+				f=true;
 			}
-			if(i==false){
+			if(f==false){
 				past=cursor;
 				cursor=cursor->next_e;
 			}
 		}
-		if(i==false){
+		if(f==false){
 			return 1;
 		}
 	} 
 	else{
 		return 1;
+	}
+	cs2=cursor->t_rel;
+	while(cs2 != NULL){
+		j=false;
+		cs1=ntype;
+		while(cs1!= NULL && j==false){
+			if(strcmp(cs1->type_rel,cs2->rel_t)==0){
+				cs1->n_rel-=cs2->nrel;
+				j=true;
+			}
+			cs1=cs1->next_t;
+		}
+		cs2=cs2->next_rt;
 	}				
 	freelistrel(cursor->rlist);
 	#ifdef DEBUG
-		printf("Relazioni ente eliminate\n");
-	#endif
-	freetree(cursor->rtree);
-	#ifdef DEBUG
 		printf("Relazioni eliminate\n");
 	#endif
+	if(cursor->rel_table != NULL){	
+		for(i=0;i<HASHSIZE_REL;i++){
+			if(cursor->rel_table[i]!= NULL){
+				freetrel(cursor->rel_table[i]);
+			}
+		}
+		free(cursor->rel_table);
+	}
 	freelist(cursor->t_rel);
-	cursor->t_rel=NULL;
 	if(past== NULL){							// eliminazione ente
 		ent_table[k]=cursor->next_e;
 		free(cursor);
@@ -575,6 +573,7 @@ int delent(char *name_e){
 		past->next_e=cursor->next_e;
 		free(cursor);
 	}
+	enable=true;
 	#ifdef DEBUG
 		int l;
 		for(l=0;l<HASHSIZE;l++){
@@ -591,82 +590,68 @@ int delent(char *name_e){
 }
 
 int report(){
-	elenco_type *ntype,*cursor,*past,*r;
-	int i;
+	elenco_type *cursor;
 	entity *cs1;
 	trelation *cs2;
 	max_d *cs3,*pre,*q,*temp;
-	bool f;
-	ntype=NULL;
-	for(i=0;i<HASHSIZE;i++){
-		cs1=ent_table[i];
-		while(cs1!= NULL){
-			cs2=cs1->t_rel;
-			while(cs2!= NULL){
-				if(cs2->nrel>0){
-					cursor=ntype;
-					f=false;
-					past=NULL;
-					while(cursor!= NULL && f==false && strcmp(cursor->type_rel,cs2->rel_t)<=0){
-						if(strcmp(cs2->rel_t,cursor->type_rel)==0){
-							f=true;
-						}
-						if(f==false){
-							past=cursor;
-							cursor=cursor->next_t;
-						}
-					}
-					if(f==false){
-						r=malloc(sizeof(elenco_type));
-						r->next_t=cursor;
-						if(past!= NULL){
-							past->next_t=r;
-						}
-						else{
-							ntype=r;
-						}
-						strcpy(r->type_rel,cs2->rel_t);
-						r->max=0;
-						r->dest= NULL;
-						cursor=r;
-					}
-					cs3=cursor->dest;
-					if(cs2->nrel > cursor->max){
-						cursor->max=cs2->nrel;
-						if(cursor->dest!=NULL){
-							temp=cursor->dest;
-							freemax(temp);
-							cursor->dest= NULL;
-							cs3=cursor->dest;
-						}	
-					}
-					if(cs2->nrel >= cursor->max && cs2->nrel!=0){
-						pre=NULL;
-						while(cs3 !=NULL && strcmp(cs3->max_dest,cs1->id_ent)<0){
-							pre=cs3;
-							cs3=cs3->next_m;
-						}
-						if(cs3== NULL || strcmp(cs3->max_dest,cs1->id_ent)!=0){
-							q=malloc(sizeof(max_d));
-							q->next_m=cs3;
-							if (pre != NULL){
-								pre->next_m=q;
-							}
-							else{
-								cursor->dest= q;
-							} 
-							strcpy(q->max_dest,cs1->id_ent);
-						}
-					}
-				}
-					cs2=cs2->next_rt;
-			}
-			cs1=cs1->next_e;
-		}
+	int i;
+	bool j;
+	if(enable==true){
+		typecheck();
 	}
+	cursor=ntype;
 	if(ntype==NULL){					// verifica se il numero di relazioni e' 0 
 		printf("none\n");
 		return 0;
+	}
+	if(enable ==true){
+		while(cursor!= NULL){
+			for(i=0;i<HASHSIZE;i++){
+				if(ent_table[i]!= NULL){
+					cs1=ent_table[i];
+					while(cs1 != NULL){
+						cs2=cs1->t_rel;
+						j=false;
+						while(cs2!= NULL && j==false){
+							if(strcmp(cursor->type_rel,cs2->rel_t)==0){
+								j=true;
+								cs3=cursor->dest;
+								if(cs2->nrel > cursor->max){
+									cursor->max=cs2->nrel;
+									if(cursor->dest!=NULL){
+										temp=cursor->dest;
+										freemax(temp);
+										cursor->dest= NULL;
+										cs3=cursor->dest;
+									}
+								}
+								if(cs2->nrel >= cursor->max && cs2->nrel!=0){
+									pre=NULL;
+									while(cs3 !=NULL && strcmp(cs3->max_dest,cs1->id_ent)<0){
+										pre=cs3;
+										cs3=cs3->next_m;
+									}
+									if(cs3== NULL || strcmp(cs3->max_dest,cs1->id_ent)!=0){
+										q=malloc(sizeof(max_d));
+										q->next_m=cs3;
+										if (pre != NULL){
+											pre->next_m=q;
+										}
+										else{
+											cursor->dest= q;
+										} 
+										strcpy(q->max_dest,cs1->id_ent);
+									}
+								}
+							}
+							cs2=cs2->next_rt;
+						}
+						cs1=cs1->next_e;
+					}
+				}
+			}
+			cursor=cursor->next_t;
+		}
 	}
 	cursor=ntype;
 	while(cursor != NULL){				//stampa report
@@ -677,12 +662,10 @@ int report(){
 			cs3=cs3->next_m;
 		}
 		printf("%d; ",cursor->max);
-		cursor->max=0;
-		freemax(cursor->dest);
 		cursor=cursor->next_t;
 	}
 	printf("\n");
-	freelistr(&ntype);
+	enable=false;
 	return 0;
 }
 
@@ -720,7 +703,6 @@ int main(){
 			}
 			printf("\n");
 		#endif
-		
 		if(strcmp(arg[0],"addrel")== 0){			// chiamata funzioni
 			addrel(arg[1],arg[2],arg[3]);			
 		}
